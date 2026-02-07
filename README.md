@@ -64,7 +64,7 @@ IASSIC/
     │
     ├── requirements.txt        # Python dependencies
     └── README.md               # Project documentation (this file)
-
+```
 > Some files (Random Forest, XGBoost, LSTM models) come from early experiments and baselines.
 > The main analysis in the report focuses on the **ANN vs LightGBM + SHAP** comparison on **FD001**.
 
