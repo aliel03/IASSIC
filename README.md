@@ -1,92 +1,269 @@
-# 2024-ali-web 
+# Predictive Maintenance of Aircraft Engines using AI
 
+This project implements a predictive maintenance pipeline using the **NASA C-MAPSS Turbofan Engine Degradation** dataset.  
+The goal is to predict the **Remaining Useful Life (RUL)** of aircraft engines and to compare several models, with a focus on:
 
+- an **Artificial Neural Network (ANN)**, and  
+- a **LightGBM** model, combined with **SHAP** for explainability.
 
-## Getting started
+This work is part of a study on **AI for the safety of critical industrial systems**.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## 🚀 Project Overview
 
-## Add your files
+Main steps of the project:
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+- Use the **FD001** subset of the NASA C-MAPSS dataset (turbofan engines).
+- Compute the **RUL** for each engine and build a supervised learning dataset.
+- Preprocess and normalise sensor data.
+- Train and evaluate several models for RUL prediction:
+  - baselines: **Random Forest**, **XGBoost**, **LSTM**,
+  - main comparison: **ANN vs LightGBM + SHAP**.
+- Compare the models using:
+  - RMSE (Root Mean Squared Error),
+  - MAE (Mean Absolute Error),
+  - R² score,
+  - training time.
+- Use **SHAP values** to explain the LightGBM predictions and identify the most important sensors.
 
+---
+
+## 📂 Project Structure
+
+Current structure of the repository:
+
+```text
+IASSIC/
+├── IASSIC.pdf                  # Project report (state of the art + experiments)
+└── predictive-maintenance/
+    ├── CMaps/                  # Raw NASA C-MAPSS files (FD001–FD004)
+    │   ├── train_FD001.txt
+    │   ├── test_FD001.txt
+    │   ├── RUL_FD001.txt
+    │   ├── train_FD002.txt
+    │   ├── test_FD002.txt
+    │   ├── RUL_FD002.txt
+    │   ├── train_FD003.txt
+    │   ├── test_FD003.txt
+    │   ├── RUL_FD003.txt
+    │   ├── train_FD004.txt
+    │   ├── test_FD004.txt
+    │   ├── RUL_FD004.txt
+    │   └── readme.txt
+    │
+    ├── preprocess.py           # Preprocessing script (builds FD001 dataset with RUL, scaling, etc.)
+    ├── train_models.py         # Training & evaluation of RUL models (RF / XGBoost / LSTM / ANN / LightGBM)
+    ├── main.py                 # Optional entry point / helper script
+    ├── app.py                  # Optional application or demo script (e.g. simple API or UI)
+    │
+    ├── rf_results_fd001.csv    # Example results for a Random Forest baseline on FD001
+    ├── xgb_model.pkl           # Saved XGBoost model
+    ├── lstm_model.h5           # Saved LSTM model
+    ├── scaler.pkl              # Fitted scaler for feature normalisation
+    │
+    ├── requirements.txt        # Python dependencies
+    └── README.md               # Project documentation (this file)
+
+> Some files (Random Forest, XGBoost, LSTM models) come from early experiments and baselines.
+> The main analysis in the report focuses on the **ANN vs LightGBM + SHAP** comparison on **FD001**.
+
+---
+
+## 🧪 Dataset & Preprocessing
+
+### Dataset
+
+* Dataset: **NASA C-MAPSS Turbofan Engine Degradation Simulation**.
+* Subset mainly used: **FD001**.
+* Each row corresponds to:
+
+  * an engine identifier,
+  * 3 operational settings,
+  * 21 sensor measurements,
+  * the time cycle since start.
+
+For each engine, the **RUL** (Remaining Useful Life) is computed as:
+
+> RUL = (last cycle before failure) − (current cycle)
+
+This transforms the time-series data into a supervised learning problem where the target is a continuous RUL value.
+
+### Preprocessing (`preprocess.py`)
+
+The preprocessing script:
+
+* loads the raw `train_FD00x.txt`, `test_FD00x.txt` and `RUL_FD00x.txt` files from `CMaps/`,
+* merges and reshapes the data to build a RUL label for each engine and time step,
+* optionally selects a subset of useful sensors,
+* normalises or standardises the features (for example, to help the ANN training),
+* writes preprocessed datasets to disk (e.g. `train_FD001_preprocessed.csv`, `test_FD001_preprocessed.csv`).
+
+---
+
+## 🤖 Models
+
+### 1. Artificial Neural Network (ANN)
+
+The ANN is a fully-connected neural network for regression.
+Typical architecture used in this project:
+
+* Input layer: one neuron per selected feature (for FD001, around 17 inputs).
+* Hidden layer 1: 64 neurons, activation **ReLU**.
+* Hidden layer 2: 32 neurons, activation **ReLU**.
+* Output layer: 1 neuron (predicted RUL), linear activation.
+* Loss: **Mean Squared Error (MSE)**.
+* Optimiser: **Adam**.
+* Training: ~30 epochs, batch size 128, with a validation split.
+
+This model is good at capturing non-linear patterns but behaves as a **black box**, which makes it harder to interpret in safety-critical settings.
+
+### 2. LightGBM (Gradient Boosted Trees)
+
+LightGBM is a tree-based gradient boosting model, well suited to structured/tabular data:
+
+* Number of estimators: around 100.
+* Learning rate: around 0.05.
+* Maximum depth: around 7.
+* Objective: regression.
+* Evaluation metric: RMSE.
+* Trained on the same FD001 features and target as the ANN.
+
+LightGBM is:
+
+* fast to train,
+* robust on tabular sensor data,
+* directly compatible with **SHAP** for explainability.
+
+### 3. Baseline models
+
+The repository also includes some baselines:
+
+* **Random Forest** (results saved in `rf_results_fd001.csv`),
+* **XGBoost** (model saved in `xgb_model.pkl`),
+* **LSTM** (model saved in `lstm_model.h5`).
+
+These baselines are useful to compare against the main models (ANN and LightGBM).
+
+---
+
+## 🔎 Explainability with SHAP
+
+For LightGBM, **SHAP (SHapley Additive exPlanations)** is used to understand:
+
+* **Global importance**: which sensors and features have the strongest impact on RUL predictions.
+* **Local explanations**: for a given engine at a given time, which features pushed the prediction up or down.
+
+The typical workflow is:
+
+1. Train the LightGBM model on FD001.
+2. Build a `TreeExplainer` or `Explainer` with SHAP.
+3. Compute SHAP values on the test set.
+4. Plot:
+
+   * a **summary plot** (global feature importance),
+   * a **bar plot**,
+   * and optionally local explanations (waterfall plot for one specific example).
+
+This helps answer questions like:
+
+> “Which sensors are most important when the model predicts that an engine is close to failure?”
+
+---
+
+## 📊 Results (Example FD001 Summary)
+
+On FD001, the experiments show that:
+
+* **LightGBM** and **ANN** reach similar accuracy (close RMSE values),
+* LightGBM is often slightly better in **MAE** and **R²**,
+* LightGBM is significantly **faster to train**,
+* SHAP makes LightGBM **easier to explain**, which is important in a safety context.
+
+A typical comparison table looks like:
+
+| Model    | RMSE (↓) | MAE (↓) | R² (↑) | Training time |
+| -------- | -------- | ------- | ------ | ------------- |
+| LightGBM | ~34      | ~25     | ~0.30+ | short         |
+| ANN      | ~35      | ~26     | ~0.30  | longer        |
+
+(The exact values depend on hyperparameters and preprocessing choices.)
+
+---
+
+## ⚙️ Setup & Usage
+
+### 1. Create and activate a virtual environment
+
+From the `predictive-maintenance/` directory:
+
+```bash
+python -m venv tfenv
+source tfenv/bin/activate      # macOS / Linux
+# .\tfenv\Scripts\activate     # Windows PowerShell
 ```
-cd existing_repo
-git remote add origin https://gitlab.isae-supaero.fr/saclab/website/students/2024-ali-web.git
-git branch -M main
-git push -uf origin main
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
 ```
 
-## Integrate with your tools
+### 3. Run preprocessing
 
-- [ ] [Set up project integrations](https://gitlab.isae-supaero.fr/saclab/website/students/2024-ali-web/-/settings/integrations)
+```bash
+python preprocess.py
+```
 
-## Collaborate with your team
+This will:
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+* read the raw NASA files from `CMaps/`,
+* build the processed dataset(s) for FD001 (and others if configured),
+* save them as CSV or NumPy files ready for training.
 
-## Test and Deploy
+### 4. Train and evaluate models
 
-Use the built-in continuous integration in GitLab.
+```bash
+python train_models.py
+```
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+Depending on the implementation of `train_models.py`, this script will:
 
-***
+* train one or several models (Random Forest, XGBoost, LSTM, ANN, LightGBM),
+* evaluate them on the test set (RMSE, MAE, R²),
+* save trained models (`.pkl`, `.h5`, etc.),
+* and optionally generate plots (loss curves, prediction vs true RUL, SHAP plots).
 
-# Editing this README
+Check the comments inside `train_models.py` for details on the available options, model selection, and output locations.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### 5. Optional: run the app
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+If `app.py` is configured as a small demo (e.g., Streamlit or Flask), you can run:
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+python app.py
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+to launch a simple interface for local experiments.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+---
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 🔭 Future Work
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Possible extensions:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+* extend experiments to FD002, FD003, FD004 (more complex operating conditions),
+* perform systematic **hyperparameter tuning**,
+* integrate **real-time sensor data**,
+* explore other architectures (GRU, Transformer-based models),
+* connect this predictive maintenance pipeline to a broader **functional safety** or **risk analysis** framework.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+---
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## 👥 Authors
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+* **Melissa Iberoualene**
+* **Ali Elkhalfi**
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Master 1 – Université Bretagne Sud.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
