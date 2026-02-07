@@ -1,5 +1,0 @@
-Bonjour,
-Ceci est un fichier texte vide et demain je vais commit mon avancement sur 
-le site.
-Merci 
-Bonne journée
